@@ -26,7 +26,7 @@ esp_now_peer_info_t peerInfo;
 #define MAX_BRIGHTNESS 255
 #define FIRING_THRESHOLD 10
 CRGB leds[NUM_STRINGS][NUM_LEDS];
-int HUE = 100;
+int HUE[NUM_STRINGS];
 float breath_amplitude = 50.0;
 bool is_firing = false;
 int firing_idx = 0;
@@ -47,13 +47,16 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
 }
 
 void setup() {
-  FastLED.addLeds<WS2811, 14>(leds[0], NUM_LEDS);
+  FastLED.addLeds<WS2811, 14>(leds[0], 200);
   FastLED.addLeds<NEOPIXEL, 32>(leds[1], NUM_LEDS);
   FastLED.addLeds<NEOPIXEL, 33>(leds[2], NUM_LEDS);
   FastLED.addLeds<NEOPIXEL, 25>(leds[3], NUM_LEDS);
   FastLED.addLeds<NEOPIXEL, 26>(leds[4], NUM_LEDS);
   FastLED.addLeds<NEOPIXEL, 27>(leds[5], NUM_LEDS);
   FastLED.addLeds<NEOPIXEL, 12>(leds[6], NUM_LEDS);
+  pinMode(16,OUTPUT);
+ 
+  
   // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
 
@@ -79,12 +82,15 @@ void setup() {
   }
 }
 void loop() {
-  HUE = random8();
+  digitalWrite(16, HIGH);
+  for (int i = 0; i < NUM_STRINGS; i++) {
+   HUE[i] = random8(); 
+  }
   float delay_ms = 10.0;
   for (int i = 50; i < MAX_BRIGHTNESS; i++ ) {
     for (int j = 0; j < NUM_LEDS; j++) {
       for (int string = 0; string < NUM_STRINGS; string++) {
-        leds[string][j] = CHSV(HUE, 170, i);
+        leds[string][j] = CHSV(HUE[string], 170, i);
       }
     }
     delay(delay_ms);
@@ -94,7 +100,10 @@ void loop() {
   for (int i = MAX_BRIGHTNESS - 1; i >= 50; i-- ) {
     for (int j = 0; j < NUM_LEDS; j++) {
       for (int string = 0; string < NUM_STRINGS; string++) {
-        leds[string][j] = CHSV(HUE, 170, i);
+        leds[string][j] = CHSV(HUE[string], 170, i);
+        if (string == 0) {
+          leds[string][j+100] = CHSV(HUE[string], 170, i);
+        }
       }
     }
     delay(delay_ms);
@@ -106,7 +115,7 @@ void loop() {
 void process_synapses() {
   if (is_firing) {
     for (int string = 0; string < NUM_STRINGS; string++) {
-      leds[string][firing_idx] = CHSV(HUE, 255, 255);
+      leds[string][firing_idx] = CHSV(HUE[string], 255, 255);
     }
     if (++firing_delayer == firing_threshold) {
       firing_delayer = 0;
