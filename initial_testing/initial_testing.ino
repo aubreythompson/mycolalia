@@ -21,8 +21,8 @@ bool myData;
 
 esp_now_peer_info_t peerInfo;
 
-#define NUM_STRINGS 8
-#define NUM_LEDS 100
+#define NUM_STRINGS 19
+#define NUM_LEDS 200
 #define MAX_BRIGHTNESS 255
 #define FIRING_THRESHOLD 10
 CRGB leds[NUM_STRINGS][NUM_LEDS];
@@ -47,14 +47,27 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
 }
 
 void setup() {
-  FastLED.addLeds<WS2811, 14>(leds[0], 200);
-  FastLED.addLeds<NEOPIXEL, 32>(leds[1], NUM_LEDS);
-  FastLED.addLeds<NEOPIXEL, 33>(leds[2], NUM_LEDS);
-  FastLED.addLeds<NEOPIXEL, 25>(leds[3], NUM_LEDS);
-  FastLED.addLeds<NEOPIXEL, 26>(leds[4], NUM_LEDS);
-  FastLED.addLeds<NEOPIXEL, 27>(leds[5], NUM_LEDS);
-  FastLED.addLeds<NEOPIXEL, 12>(leds[6], NUM_LEDS);
-  pinMode(16,OUTPUT);
+    Serial.begin(115200);
+  FastLED.addLeds<WS2811, 14>(leds[0], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 25>(leds[1], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 26>(leds[2], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 27>(leds[3], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 32>(leds[4], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 33>(leds[5], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 16>(leds[6], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 17>(leds[7], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 18>(leds[8], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 19>(leds[9], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 22>(leds[10], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 23>(leds[11], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 2>(leds[12], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 4>(leds[13], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 5>(leds[14], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 12>(leds[15], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 13>(leds[16], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 14>(leds[17], NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 15>(leds[18], NUM_LEDS);
+    
  
   
   // Set device as a Wi-Fi Station
@@ -81,35 +94,50 @@ void setup() {
     return;
   }
 }
+int prev = millis();
+int curr = millis();
 void loop() {
-  digitalWrite(16, HIGH);
+  curr = millis();
+  Serial.println(curr - prev);
+  prev = curr;
   for (int i = 0; i < NUM_STRINGS; i++) {
    HUE[i] = random8(); 
   }
-  float delay_ms = 10.0;
-  for (int i = 50; i < MAX_BRIGHTNESS; i++ ) {
-    for (int j = 0; j < NUM_LEDS; j++) {
+  for (int j = 0; j < NUM_LEDS; j++) {
       for (int string = 0; string < NUM_STRINGS; string++) {
-        leds[string][j] = CHSV(HUE[string], 170, i);
+        leds[string][j] = CHSV(random8(), 170, 255);
       }
-    }
-    delay(delay_ms);
-    process_synapses();
-    FastLED.show();
   }
-  for (int i = MAX_BRIGHTNESS - 1; i >= 50; i-- ) {
-    for (int j = 0; j < NUM_LEDS; j++) {
+  FastLED.show();
+  for (int j = 0; j < NUM_LEDS; j++) {
       for (int string = 0; string < NUM_STRINGS; string++) {
-        leds[string][j] = CHSV(HUE[string], 170, i);
-        if (string == 0) {
-          leds[string][j+100] = CHSV(HUE[string], 170, i);
-        }
+        leds[string][j] = CRGB::Black;
       }
-    }
-    delay(delay_ms);
-    process_synapses();
-    FastLED.show();
   }
+  FastLED.show();
+//  float delay_ms = 10.0;
+//  for (int i = 50; i < MAX_BRIGHTNESS; i++ ) {
+//    for (int j = 0; j < NUM_LEDS; j++) {
+//      for (int string = 0; string < NUM_STRINGS; string++) {
+//        leds[string][j] = CHSV(HUE[string], 170, i);
+//      }
+//    }
+//    delay(delay_ms);
+//    process_synapses();
+//    FastLED.show();
+//
+//    Serial.println("here");
+//  }
+//  for (int i = MAX_BRIGHTNESS - 1; i >= 50; i-- ) {
+//    for (int j = 0; j < NUM_LEDS; j++) {
+//      for (int string = 0; string < NUM_STRINGS; string++) {
+//        leds[string][j] = CHSV(HUE[string], 170, i);
+//      }
+//    }
+//    delay(delay_ms);
+//    process_synapses();
+//    FastLED.show();
+//  }
 }
 
 void process_synapses() {
