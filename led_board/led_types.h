@@ -18,6 +18,6 @@ struct Pulse {
 };
 
 struct Funky {
-  int tube_idx;
-  int fairy_idx;
+  int tube;
+  int fairy;
 };

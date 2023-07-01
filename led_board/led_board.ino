@@ -14,25 +14,25 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include "led_types.h"
+#include "interboard_comms.h"
 
-#define MAX_PULSES 100
 #define TUBE_COUNT 12
 #define LEDS_PER_TUBE 50
 #define FAIRY_COUNT 3
 #define LEDS_PER_FAIRY 200
 
-Pulse pulses[MAX_PULSES];
 CRGB tubes[TUBE_COUNT][LEDS_PER_TUBE];
 CRGB fairys[FAIRY_COUNT][LEDS_PER_FAIRY];
 Funky p2p_funky = { 9, 0 };
-Funky tree_p1_funky = {10, 1};
-Funky tree_p2_funky = {11, 2};
+Funky tree_p1_funky = { 10, 1 };
+Funky tree_p2_funky = { 11, 2 };
+bool p1_button_pressed, p2_button_pressed; // guessing we'll need these for some game state
 
 void setup() {
   Serial.begin(115200);
-
+  init_comms();
   // TUBES - Base of Tree
-  FastLED.addLeds<NEOPIXEL, 2>(tubes[0], LEDS_PER_TUBE);
+  FastLED.addLeds<NEOPIXEL, 0>(tubes[0], LEDS_PER_TUBE);
   FastLED.addLeds<NEOPIXEL, 4>(tubes[1], LEDS_PER_TUBE);
   FastLED.addLeds<NEOPIXEL, 5>(tubes[2], LEDS_PER_TUBE);
 
@@ -51,14 +51,68 @@ void setup() {
   FastLED.addLeds<WS2811, 27>(fairys[1], LEDS_PER_FAIRY);
   FastLED.addLeds<NEOPIXEL, 25>(tubes[11], LEDS_PER_TUBE);
   FastLED.addLeds<WS2811, 32>(fairys[2], LEDS_PER_FAIRY);
-
 }
 
 void loop() {
+  for (int i = 0; i < TUBE_COUNT; i++) {
+    for (int j = 0; j < LEDS_PER_TUBE; j++) {
+      tubes[i][j] = CRGB::Black;
+    }
+  }
+  for (int i = 0; i < FAIRY_COUNT; i++) {
+    for (int j = 0; j < LEDS_PER_FAIRY; j++) {
+      fairys[i][j] = CRGB::Black;
+    }
+  }
   process_pulses();
   FastLED.show();
 }
 
+// ******************************************************************
+// --------------------------- COMMS --------------------------------
+// ******************************************************************
+void init_comms() {
+  // Set ESP32 as a Wi-Fi Station
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+
+  // Initilize ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+
+  // Register the receive callback
+  esp_now_register_recv_cb(message_received);
+}
+
+Message incoming_msg;
+void message_received(const uint8_t *mac, const uint8_t *incomingData, int len) {
+  Serial.println("message received!");
+  memcpy(&incoming_msg, incomingData, sizeof(incoming_msg));
+  switch (incoming_msg.sender) {
+    case Message::P1:
+      Serial.println("sending pulses for p1!");
+      fire_pulse(CHSV(incoming_msg.hue, 200, 255), TUBE, tree_p1_funky.tube, INCREASING, 1, 1);
+      fire_pulse(CHSV(incoming_msg.hue, 200, 255), FAIRY, tree_p1_funky.fairy, INCREASING, 4, 4);
+      p1_button_pressed = true;
+      break;
+    case Message::P2:
+      Serial.println("sending pulses for p2!");
+      fire_pulse(CHSV(incoming_msg.hue, 200, 255), TUBE, tree_p2_funky.tube, INCREASING, 1, 1);
+      fire_pulse(CHSV(incoming_msg.hue, 200, 255), FAIRY, tree_p2_funky.fairy, INCREASING, 4, 4);
+      p2_button_pressed = true;
+      break;
+    default:
+      break;
+  }
+}
+
+// ******************************************************************
+// --------------------------- PULSES -------------------------------
+// ******************************************************************
+#define MAX_PULSES 100
+Pulse pulses[MAX_PULSES];
 
 void process_pulses() {
   Pulse *p;
@@ -92,7 +146,16 @@ void process_pulses() {
   }
 }
 
-void fire_pulse(int pulse_idx, CRGB color, bool is_tube, int idx, bool increasing, int speed, int width) {
+void fire_pulse(CRGB color, bool is_tube, int idx, bool increasing, int speed, int width) {
+  int pulse_idx = -1;
+  for (int i = 0; i < MAX_PULSES; i++) {
+    if (!pulses[i].active) {
+      pulse_idx = i;
+      break;
+    }
+  }
+  if (pulse_idx == -1) return; // fail silently if we have > MAX_PULSES going already
+
   pulses[pulse_idx].color = color;
   pulses[pulse_idx].string_idx = idx;
   pulses[pulse_idx].firing_idx = 0;
@@ -102,3 +165,8 @@ void fire_pulse(int pulse_idx, CRGB color, bool is_tube, int idx, bool increasin
   pulses[pulse_idx].increasing = increasing;
   pulses[pulse_idx].is_tube = is_tube;
 }
+
+
+// ******************************************************************
+// ------------------------ BREATHING -------------------------------
+// ******************************************************************
