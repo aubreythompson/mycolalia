@@ -1,0 +1,13 @@
+TODO LIST:
+	- Global tree state (excitation is the main one)
+		- If excitation is a float, do we want speed, etc to be bytes with 10==1?
+		- Figure out generally how to do that. Probbbbabbbbly the byte thing with 10 == 1 for speed and 1 means e every 10 ticks it will advance a single pixel, 20 means it will advance 2 pixels per tick, 250 means 25 pixels per tick, etc.
+		- Other variable ideas: mood for specific colors (ie. i'm in a "red" mood), rightness/wrongness, OTHERS PROBABLY
+	- Sound stuff! This should slot in nicely with our triggerings and changes to excitation
+		- This probably has unknown unknowns so get started on this soon
+	
+	- Further game rounds, modes, moods, etc.
+		- Maybe make the whole tree a state machine similar to how we have the Round 1 phases. Then just move between states partially randomly, partially based on excitation, partially based on whatever
+	
+	- Program vessicle boards!
+		- Will be pretty small (generally just stateless controllers) 
