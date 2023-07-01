@@ -23,10 +23,11 @@
 
 CRGB tubes[TUBE_COUNT][LEDS_PER_TUBE];
 CRGB fairys[FAIRY_COUNT][LEDS_PER_FAIRY];
-Funky p2p_funky = { 9, 0 };
-Funky tree_p1_funky = { 10, 1 };
-Funky tree_p2_funky = { 11, 2 };
-bool p1_button_pressed, p2_button_pressed; // guessing we'll need these for some game state
+Funky v2v = { 9, 0 }; // vesicle-to-vesicle
+Funky tv1 = { 10, 1 }; // tree-to-vesicle1
+Funky tv2 = { 11, 2 }; // tree-to-vesicle2
+int tb[] = [0, 1, 2]; // tree base
+int tt[] = [3, 4, 5, 6, 7, 8]; // tree top
 
 void setup() {
   Serial.begin(115200);
@@ -60,7 +61,9 @@ void setup() {
 //  - Call FastLED.show() exactly once
 void loop() {
   breathe();
+  round1();
   process_pulses();
+
   FastLED.show();
 }
 
@@ -87,16 +90,16 @@ void message_received(const uint8_t *mac, const uint8_t *incomingData, int len) 
   Serial.println("message received!");
   memcpy(&incoming_msg, incomingData, sizeof(incoming_msg));
   switch (incoming_msg.sender) {
-    case Message::P1:
+    case Message::V1:
       Serial.println("sending pulses for p1!");
-      fire_pulse(CHSV(incoming_msg.hue, 200, 255), TUBE, tree_p1_funky.tube, INCREASING, 1, 1);
-      fire_pulse(CHSV(incoming_msg.hue, 200, 255), FAIRY, tree_p1_funky.fairy, INCREASING, 4, 4);
+      fire_pulse(CHSV(incoming_msg.hue, 200, 255), TUBE, tv1.tube, INCREASING, 1, 1);
+      fire_pulse(CHSV(incoming_msg.hue, 200, 255), FAIRY, tv1.fairy, INCREASING, 4, 4);
       p1_button_pressed = true;
       break;
-    case Message::P2:
+    case Message::V2:
       Serial.println("sending pulses for p2!");
-      fire_pulse(CHSV(incoming_msg.hue, 200, 255), TUBE, tree_p2_funky.tube, INCREASING, 1, 1);
-      fire_pulse(CHSV(incoming_msg.hue, 200, 255), FAIRY, tree_p2_funky.fairy, INCREASING, 4, 4);
+      fire_pulse(CHSV(incoming_msg.hue, 200, 255), TUBE, tv2.tube, INCREASING, 1, 1);
+      fire_pulse(CHSV(incoming_msg.hue, 200, 255), FAIRY, tv2.fairy, INCREASING, 4, 4);
       p2_button_pressed = true;
       break;
     default:
@@ -142,7 +145,7 @@ void process_pulses() {
   }
 }
 
-void fire_pulse(CRGB color, bool is_tube, int idx, bool increasing, int speed, int width) {
+int fire_pulse(CRGB color, bool is_tube, int idx, bool increasing, int speed, int width) {
   int pulse_idx = -1;
   for (int i = 0; i < MAX_PULSES; i++) {
     if (!pulses[i].active) {
@@ -150,7 +153,7 @@ void fire_pulse(CRGB color, bool is_tube, int idx, bool increasing, int speed, i
       break;
     }
   }
-  if (pulse_idx == -1) return; // fail silently if we have > MAX_PULSES going already
+  if (pulse_idx == -1) return pulse_idx; // fail silently if we have > MAX_PULSES going already
 
   pulses[pulse_idx].color = color;
   pulses[pulse_idx].string_idx = idx;
@@ -160,6 +163,7 @@ void fire_pulse(CRGB color, bool is_tube, int idx, bool increasing, int speed, i
   pulses[pulse_idx].active = true;
   pulses[pulse_idx].increasing = increasing;
   pulses[pulse_idx].is_tube = is_tube;
+  return pulse_idx;
 }
 
 
@@ -175,30 +179,30 @@ void fire_pulse(CRGB color, bool is_tube, int idx, bool increasing, int speed, i
 int saturation = 200;
 int breathing_speed = 1;
 bool inhaling = true;
-int brightness = MIN_BREATH;
+int breath_brightness = MIN_BREATH;
 int hues[TUBE_COUNT + FAIRY_COUNT];
 
 void breathe() {
   for (int i = 0; i < TUBE_COUNT; i++) {
     for (int j = 0; j < LEDS_PER_TUBE; j++) {
-      tubes[i][j] = CHSV(hues[i], saturation, brightness);
+      tubes[i][j] = CHSV(hues[i], saturation, breath_brightness);
     }
   }
   for (int i = 0; i < FAIRY_COUNT; i++) {
     for (int j = 0; j < LEDS_PER_FAIRY; j++) {
-      fairys[i][j] = CHSV(hues[TUBE_COUNT+i], saturation, brightness);
+      fairys[i][j] = CHSV(hues[TUBE_COUNT+i], saturation, breath_brightness);
     }
   }
   if (inhaling) {
-    brightness += breathing_speed;
-    if (brightness >= MAX_BREATH) {
-      brightness = MAX_BREATH;
+    breath_brightness += breathing_speed;
+    if (breath_brightness >= MAX_BREATH) {
+      breath_brightness = MAX_BREATH;
       inhaling = false;
     }
   } else {
-    brightness -= breathing_speed;
-    if (brightness <= MIN_BREATH) {
-      brightness = MIN_BREATH;
+    breath_brightness -= breathing_speed;
+    if (breath_brightness <= MIN_BREATH) {
+      breath_brightness = MIN_BREATH;
       inhaling = true;
       set_random_hues();
     }
@@ -208,5 +212,69 @@ void breathe() {
 void set_random_hues() {
   for (int i = 0; i < TUBE_COUNT + FAIRY_COUNT; i++){
     hues[i] = random8();
+  }
+}
+
+// ******************************************************************
+// ------------------------- GAME -----------------------------------
+// ******************************************************************
+bool p1_button_pressed, p2_button_pressed; // guessing we'll need these for some game state?
+
+// Move through these states as we progress through this round
+enum R1State {INACTIVE, CLUEV1, V1WRONG, V1RIGHT, CLUEV2, V2WRONG, V2RIGHT};
+R1State r1_state = R1State::INACTIVE;
+int firing_speed = 1;
+int pulse_width = 2;
+int hueToMatch;
+int pulse_idx;
+int firing_period_ms = 500;
+uint32_t last_fired_at;
+bool v1s_turn = true;
+bool button_pressed = false;
+int hue_guessed;
+#define CORRECT_MAX_DISTANCE 5
+
+// ROUND 1 - MATCH THE COLOR ONE AT A TIME
+void round1() {
+  if (r1_state == INACTIVE) {
+    hueToMatch = random8();
+    r1_state = R1State::CLUEV1;
+    v1s_turn = true;
+  }
+  // Black out the one we are pulsing down
+  if (v1s_turn) {
+    clear_funky(tv1);
+  } else {
+    clear_funky(tv2);
+  }
+  int tube_idx = v1s_turn ? tv1.tube : tv2.tube;
+  int fairy_idx = v1s_turn ? tv1.fairy : tv2.fairy;
+  unsigned long now = millis();
+  if (now - last_fired_at > firing_period_ms) {
+    fire_pulse(CHSV(hueToMatch, 170, breath_brightness), TUBE, tube_idx, INCREASING, firing_speed, pulse_width);
+    fire_pulse(CHSV(hueToMatch, 170, breath_brightness), FAIRY, fairy_idx, INCREASING, firing_speed * 4, pulse_width*4);
+  }
+  
+}
+
+void r1_button_pressed(int hue, int sender) {
+  if (v1s_turn == (sender == Message::Sender::V1)) {
+    hue_guessed = hue;
+    button_pressed = true;
+  }
+}
+
+void clear_funky(Funky f) {
+  clear_tube(f.tube);
+  clear_fairy(f.fairy);
+}
+void clear_tube(int idx) {
+  for (int i = 0; i < LEDS_PER_TUBE; i ++) {
+    tubes[idx][i] = CRGB::Black;
+  }
+}
+void clear_fairy(int idx) {
+  for (int i = 0; i < LEDS_PER_FAIRY; i ++) {
+    fairys[idx][i] = CRGB::Black;
   }
 }

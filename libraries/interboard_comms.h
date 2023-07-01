@@ -11,7 +11,7 @@ const uint8_t vessicle_2_address[] = {0xC8, 0xF0, 0x9E, 0xF3, 0x37, 0x8C};
 
 typedef struct Message {
   enum EventType {BUTTON_PRESSED, SET_COLOR};
-  enum Sender {P1, P2, Tree};
+  enum Sender {V1, V2, Tree};
 
   unsigned long time_sent;
   int hue;
