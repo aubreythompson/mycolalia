@@ -53,17 +53,13 @@ void setup() {
   FastLED.addLeds<WS2811, 32>(fairys[2], LEDS_PER_FAIRY);
 }
 
+// Each loop will
+//  - Update the state of all effects
+//  - Move each game forward one time unit
+//  - Trigger/adjust sounds as needed
+//  - Call FastLED.show() exactly once
 void loop() {
-  for (int i = 0; i < TUBE_COUNT; i++) {
-    for (int j = 0; j < LEDS_PER_TUBE; j++) {
-      tubes[i][j] = CRGB::Black;
-    }
-  }
-  for (int i = 0; i < FAIRY_COUNT; i++) {
-    for (int j = 0; j < LEDS_PER_FAIRY; j++) {
-      fairys[i][j] = CRGB::Black;
-    }
-  }
+  breathe();
   process_pulses();
   FastLED.show();
 }
@@ -170,3 +166,47 @@ void fire_pulse(CRGB color, bool is_tube, int idx, bool increasing, int speed, i
 // ******************************************************************
 // ------------------------ BREATHING -------------------------------
 // ******************************************************************
+// breathing could probably be improved in a few ways:
+//    - make it non-linear/more breath-like
+//    - make the different hues not completely random but interdependent in some way
+//    - we'll probably want to figure out a more granular speed
+#define MIN_BREATH 50
+#define MAX_BREATH 250
+int saturation = 200;
+int breathing_speed = 1;
+bool inhaling = true;
+int brightness = MIN_BREATH;
+int hues[TUBE_COUNT + FAIRY_COUNT];
+
+void breathe() {
+  for (int i = 0; i < TUBE_COUNT; i++) {
+    for (int j = 0; j < LEDS_PER_TUBE; j++) {
+      tubes[i][j] = CHSV(hues[i], saturation, brightness);
+    }
+  }
+  for (int i = 0; i < FAIRY_COUNT; i++) {
+    for (int j = 0; j < LEDS_PER_FAIRY; j++) {
+      fairys[i][j] = CHSV(hues[TUBE_COUNT+i], saturation, brightness);
+    }
+  }
+  if (inhaling) {
+    brightness += breathing_speed;
+    if (brightness >= MAX_BREATH) {
+      brightness = MAX_BREATH;
+      inhaling = false;
+    }
+  } else {
+    brightness -= breathing_speed;
+    if (brightness <= MIN_BREATH) {
+      brightness = MIN_BREATH;
+      inhaling = true;
+      set_random_hues();
+    }
+  }
+}
+
+void set_random_hues() {
+  for (int i = 0; i < TUBE_COUNT + FAIRY_COUNT; i++){
+    hues[i] = random8();
+  }
+}
