@@ -34,6 +34,31 @@ int tt[] = { 3, 4, 5, 6, 7, 8 };  // tree top
 int default_firing_speed = 1;
 int default_pulse_width = 1;
 
+// ******************************************************************
+// ---------------------- GAME STATE VARIABLES ----------------------
+// ******************************************************************
+
+float excitation = 1; //goes up with all interaction
+float contrarianism = 1; //goes up with "wrong" interaction
+float cooperatiion = 1; //goes up with "right" interaction
+enum dominantColor { RED,
+               YELLOW,
+               GREEN,
+               BLUE,
+               PURPLE };
+
+
+/*
+Possible color bands:
+Red: 230 - 22 (48) fire
+orange/yellow: 22 - 75 (53) air
+Green: 75 - 128 (53) earth
+Blue: 128 - 184 (56) water
+Purple/pink: 184 - 230 (46) space
+see https://github.com/FastLED/FastLED/wiki/FastLED-HSV-Colors rainbow spectrum for color placements
+*/
+
+
 void setup() {
   Serial.begin(115200);
   init_comms();
@@ -103,10 +128,10 @@ void message_received(const uint8_t *mac_addr, const uint8_t *incomingData, int 
     return;
   }
   memcpy(&incoming_msg, incomingData, sizeof(incoming_msg));
-  Serial.println("memcpy successful!");
+  excitation += .1;
+  // Serial.println("memcpy successful!");
   switch (incoming_msg.sender) {
     case Message::V1:
-      Serial.println("message is from V1");
       if (incoming_msg.event == Message::BUTTON_PRESSED) {
         fire_pulse(CHSV(incoming_msg.hue, 170, 255), tv1, DECREASING, default_firing_speed, default_pulse_width);
         fire_pulse(CHSV(incoming_msg.hue, 170, 255), v2v, INCREASING, default_firing_speed, default_pulse_width);
@@ -123,7 +148,6 @@ void message_received(const uint8_t *mac_addr, const uint8_t *incomingData, int 
       }
       break;
     case Message::V2:
-      Serial.println("message is from V2");
       if (incoming_msg.event == Message::BUTTON_PRESSED) {
         fire_pulse(CHSV(incoming_msg.hue, 170, 255), tv2, DECREASING, default_firing_speed, default_pulse_width);
         fire_pulse(CHSV(incoming_msg.hue, 170, 255), v2v, DECREASING, default_firing_speed, default_pulse_width);
