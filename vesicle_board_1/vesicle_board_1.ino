@@ -29,7 +29,7 @@ int buttonState = 0;
 //shared variables between board
 int TV_hue;           //tentacle to vesicle value - get from tree board
 int V2V_hue;          //vesicle to vesicle value
-int roundNumber = 0;  //not sure which board to keep this on - maybe it goes on the tree board
+int roundNumber = 1;  //not sure which board to keep this on - maybe it goes on the tree board
 
 struct Player {
   CRGB leds[6];
@@ -72,6 +72,11 @@ unsigned long previousMillis = 0;  // will store last time LED was updated
 const long interval = 100;         // interval at which to sample (milliseconds)
 
 void loop() {
+  updateHue();
+  buttonState = digitalRead(player.inputPin);
+  if (buttonState == HIGH) {
+    broadcast_button_pressed(buttonHue);
+  }
   //ROUND 0 - BREATHING STATE
   // while (roundNumber == 0)
 
@@ -82,47 +87,48 @@ void loop() {
   //}
 
   //ROUND 1 - MATCH THE COLOR ONE AT A TIME - PLAYER 1
-  while (roundNumber == 1) {
-    TV_hue = random8();  // get from tree board actually
-    Serial.print("TV1 set to ");
-    Serial.print(TV_hue);
-    buttonState = digitalRead(player.inputPin);
-    while (buttonState == LOW) {
-      updateHue();
-    }
-    if (abs(buttonHue - TV_hue) > CORRECT_MAX_DISTANCE) {
-      Serial.print("player 1 wins!");
-      winnerFlash();
-      //send winning status to tree board
-      //update round number, send status to other boards
-      roundNumber++;
-    }
-  }
-  //ROUND 2 - MATCH THE COLOR ONE AT A TIME - PLAYER 2
-  while (roundNumber == 2) {
-    //do nothing
-  }
+  // while (roundNumber == 1) {
+  //   TV_hue = random8();  // get from tree board actually
+  //   Serial.print("TV1 set to ");
+  //   Serial.print(TV_hue);
+  //   buttonState = digitalRead(player.inputPin);
+  //   while (buttonState == LOW) {
+  //     updateHue();
+  //   }
+  //   broadcast_button_pressed(buttonHue);
+  //   if (abs(buttonHue - TV_hue) > CORRECT_MAX_DISTANCE) {
+  //     Serial.print("player 1 wins!");
+  //     winnerFlash();
+  //     //send winning status to tree board
+  //     //update round number, send status to other boards
+  //     roundNumber++;
+  //   }
+  // }
+  // //ROUND 2 - MATCH THE COLOR ONE AT A TIME - PLAYER 2
+  // while (roundNumber == 2) {
+  //   //do nothing
+  // }
 
-  // ROUND 3 - MATCH COLORS AT THE SAME TIME
-  while (roundNumber == 3) {
-    TV_hue = random8();  // get from tree board actually
-    buttonState = digitalRead(player.inputPin);
-    while (buttonState == LOW) {
-      updateHue();
-    }
-    broadcast_button_pressed(buttonHue);
-    if (abs(buttonHue - TV_hue) > CORRECT_MAX_DISTANCE) {
-      // send correct signal to tree board
-      // send correct signal to other vesicle board
-      // check if other vesicle board is sending correct signal
-      winnerFlash();
-      //update round number, send status to other boards
-      roundNumber++;
-    }
-  }
+  // // ROUND 3 - MATCH COLORS AT THE SAME TIME
+  // while (roundNumber == 3) {
+  //   TV_hue = random8();  // get from tree board actually
+  //   buttonState = digitalRead(player.inputPin);
+  //   while (buttonState == LOW) {
+  //     updateHue();
+  //   }
+  //   broadcast_button_pressed(buttonHue);
+  //   if (abs(buttonHue - TV_hue) > CORRECT_MAX_DISTANCE) {
+  //     // send correct signal to tree board
+  //     // send correct signal to other vesicle board
+  //     // check if other vesicle board is sending correct signal
+  //     winnerFlash();
+  //     //update round number, send status to other boards
+  //     roundNumber++;
+  //   }
+  // }
 
-  //ROUND 4 - send a color to the other vesicle
-  //while (roundNumber == 4)
+  // //ROUND 4 - send a color to the other vesicle
+  // //while (roundNumber == 4)
 }
 
 void updateHue() {
@@ -179,7 +185,7 @@ void init_comms() {
 void message_received(const uint8_t *mac, const uint8_t *incomingData, int len) {
   memcpy(&incoming_msg, incomingData, sizeof(incoming_msg));
   switch (incoming_msg.sender) {
-    case Message::P2:
+    case Message::V2:
       // any inter-vessicle comms should go here if we want those?
       break;
     case Message::Tree:
@@ -205,7 +211,7 @@ void broadcast() {
 void broadcast_button_pressed(int hue) {
   outbound_msg.event = Message::BUTTON_PRESSED;
   outbound_msg.hue = hue;
-  outbound_msg.sender = Message::P1;
+  outbound_msg.sender = Message::V1;
   outbound_msg.time_sent = millis();
   broadcast();
 }

@@ -1,0 +1,13 @@
+#define BREATH 001
+#define CHIMEB1 002
+#define CHIMEB2 003
+#define CHIMEB3 004
+#define CHIMEB4 005
+#define CHIMEB5 006
+#define CHIME1 007
+#define CHIME2 008
+#define CHIME3 009
+#define CHIME4 010
+#define CHIME5 011
+#define FLYTRAP 012
+#define FLYTRAP_PAR 013

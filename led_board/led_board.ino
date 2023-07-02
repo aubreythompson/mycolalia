@@ -8,13 +8,14 @@
 
 */
 
-
 #include <FastLED.h>
 #include <math.h>
 #include <esp_now.h>
 #include <WiFi.h>
+#include "Tsunami.h"
 #include "led_types.h"
 #include "interboard_comms.h"
+#include "sounds.h"
 
 #define TUBE_COUNT 12
 #define LEDS_PER_TUBE 50
@@ -23,6 +24,8 @@
 
 CRGB tubes[TUBE_COUNT][LEDS_PER_TUBE];
 CRGB fairys[FAIRY_COUNT][LEDS_PER_FAIRY];
+
+// Note, these are indices, not pin numbers
 Funky v2v = { 9, 0 };             // vesicle-to-vesicle
 Funky tv1 = { 10, 1 };            // tree-to-vesicle1
 Funky tv2 = { 11, 2 };            // tree-to-vesicle2
@@ -34,6 +37,23 @@ int default_pulse_width = 1;
 void setup() {
   Serial.begin(115200);
   init_comms();
+  init_leds();
+  init_sound();
+}
+
+// Each loop will
+//  - Update the state of all effects
+//  - Move each game forward one time unit
+//  - Trigger/adjust sounds as needed
+//  - Call FastLED.show() exactly once
+void loop() {
+  breathe();
+  round1();
+  process_pulses();
+  FastLED.show();
+}
+
+void init_leds() {
   // TUBES - Base of Tree
   FastLED.addLeds<NEOPIXEL, 0>(tubes[0], LEDS_PER_TUBE);
   FastLED.addLeds<NEOPIXEL, 4>(tubes[1], LEDS_PER_TUBE);
@@ -56,25 +76,13 @@ void setup() {
   FastLED.addLeds<WS2811, 32>(fairys[2], LEDS_PER_FAIRY);
 }
 
-// Each loop will
-//  - Update the state of all effects
-//  - Move each game forward one time unit
-//  - Trigger/adjust sounds as needed
-//  - Call FastLED.show() exactly once
-void loop() {
-  breathe();
-  round1();
-  process_pulses();
-
-  FastLED.show();
-}
-
 // ******************************************************************
 // --------------------------- COMMS --------------------------------
 // ******************************************************************
 void init_comms() {
   // Set ESP32 as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
+  //esp_wifi_set_mac(WIFI_IF_STA, &led_board_address[0]);
   WiFi.disconnect();
 
   // Initilize ESP-NOW
@@ -86,20 +94,36 @@ void init_comms() {
   // Register the receive callback
   esp_now_register_recv_cb(message_received);
 }
-
+bool playing = false; // This was just for testing and should go away
 Message incoming_msg;
-void message_received(const uint8_t *mac, const uint8_t *incomingData, int len) {
-  Serial.println("message received!");
+void message_received(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
+  if (len == 1) {
+    delay(10);
+    Serial.println("uhhh it's doin the thing again");
+    return;
+  }
   memcpy(&incoming_msg, incomingData, sizeof(incoming_msg));
+  Serial.println("memcpy successful!");
   switch (incoming_msg.sender) {
     case Message::V1:
+      Serial.println("message is from V1");
       if (incoming_msg.event == Message::BUTTON_PRESSED) {
         fire_pulse(CHSV(incoming_msg.hue, 170, 255), tv1, DECREASING, default_firing_speed, default_pulse_width);
         fire_pulse(CHSV(incoming_msg.hue, 170, 255), v2v, INCREASING, default_firing_speed, default_pulse_width);
         game_button_pressed(incoming_msg.hue, Message::V1);
+        if (playing) {
+          stop_all_tracks();
+          playing = false;
+        } else {
+          int track = random(1, 13);
+          loop_track(track, true);
+          play_track(track);
+          playing = true;
+        }
       }
       break;
     case Message::V2:
+      Serial.println("message is from V2");
       if (incoming_msg.event == Message::BUTTON_PRESSED) {
         fire_pulse(CHSV(incoming_msg.hue, 170, 255), tv2, DECREASING, default_firing_speed, default_pulse_width);
         fire_pulse(CHSV(incoming_msg.hue, 170, 255), v2v, DECREASING, default_firing_speed, default_pulse_width);
@@ -109,6 +133,38 @@ void message_received(const uint8_t *mac, const uint8_t *incomingData, int len) 
     default:
       break;
   }
+}
+// ******************************************************************
+// --------------------------- SOUND --------------------------------
+// ******************************************************************
+Tsunami tsunami;
+
+void init_sound() {
+  Serial.println("initializing Tsunami!");
+  tsunami.start();
+  Serial.println("Tsunami initialized...");
+  delay(10);
+  tsunami.stopAllTracks();
+  tsunami.samplerateOffset(0, 0);
+  tsunami.setReporting(false);
+  tsunami.masterGain(0, 0);  // Reset the master gain to 0dB
+}
+
+void play_track(int track) {
+  Serial.print("Playing track ");
+  Serial.println(track);
+  tsunami.trackPlayPoly(track, 0, false);
+  tsunami.update();
+}
+
+void loop_track(int track, bool looping) {
+  tsunami.trackLoop(track, looping);
+  tsunami.update();
+}
+
+void stop_all_tracks() {
+  tsunami.stopAllTracks();
+  tsunami.update();
 }
 
 // ******************************************************************
@@ -171,7 +227,7 @@ int fire_pulse(CRGB color, bool is_tube, int idx, bool increasing, int speed, in
   pulses[pulse_idx].is_tube = is_tube;
   return pulse_idx;
 }
-int fire_pulse(CRGB color, Funky funky, bool increasing, int speed, int width) {
+void fire_pulse(CRGB color, Funky funky, bool increasing, int speed, int width) {
   fire_pulse(color, TUBE, funky.tube, increasing, speed, width);
   fire_pulse(color, FAIRY, funky.fairy, increasing, speed * 4, width * 4);
 }
@@ -318,10 +374,10 @@ void round1() {
     case R1Phase::V2RIGHT:
       // Go fucking crazy man, like really bonkers cuz they both got it right
       if (now - last_fired_at > 100) {
-        fire_pulse(CHSV(random(hue_to_match - 20, hue_to_match + 20), 170, 255), tv1, DECREASING, random(1, 4), random(1,5));
-        fire_pulse(CHSV(random(hue_to_match - 20, hue_to_match + 20), 170, 255), v2v, INCREASING, random(1, 4), random(1,5));
-        fire_pulse(CHSV(random(hue_to_match - 20, hue_to_match + 20), 170, 255), v2v, DECREASING, random(1, 4), random(1,5));
-        fire_pulse(CHSV(random(hue_to_match - 20, hue_to_match + 20), 170, 255), tv2, DECREASING, random(1, 4), random(1,5));
+        fire_pulse(CHSV(random(hue_to_match - 20, hue_to_match + 20), 170, 255), tv1, DECREASING, random(1, 4), random(1, 5));
+        fire_pulse(CHSV(random(hue_to_match - 20, hue_to_match + 20), 170, 255), v2v, INCREASING, random(1, 4), random(1, 5));
+        fire_pulse(CHSV(random(hue_to_match - 20, hue_to_match + 20), 170, 255), v2v, DECREASING, random(1, 4), random(1, 5));
+        fire_pulse(CHSV(random(hue_to_match - 20, hue_to_match + 20), 170, 255), tv2, DECREASING, random(1, 4), random(1, 5));
         last_fired_at = now;
       }
       if (right_animation_started_at + right_animation_duration > now) {
@@ -360,4 +416,50 @@ void clear_fairy(int idx) {
   for (int i = 0; i < LEDS_PER_FAIRY; i++) {
     fairys[idx][i] = CRGB::Black;
   }
+}
+
+
+void test_tsunami_forever() {
+  delay(1000);
+  Serial.begin(115200);
+  Serial.println("Starting tsunami in 2...");
+  delay(2000);
+  tsunami.start();
+  Serial.println("Tsunami started");
+  Serial.println("Sending StopAll command in 2...");
+  delay(2000);
+  tsunami.stopAllTracks();
+  Serial.println("Calling update on tsunami in 2...");
+  delay(2000);
+  tsunami.update();
+  while (true) {
+    Serial.println("Playing track 5 in 2...");
+    delay(2000);
+    tsunami.trackPlayPoly(5, 0, true);
+    tsunami.update();
+  }
+}
+
+void test_tsunami_raw_serial() {
+  Serial.println("Setting up serial2");
+  Serial2.begin(57600, SERIAL_8N1, 33, 17);
+  Serial.println("Serial2 setup success");
+  uint8_t txbuf[10];
+  uint8_t o;
+
+  o = 1 & 0x07;
+  txbuf[0] = 0xf0;
+  txbuf[1] = 0xaa;
+  txbuf[2] = 0x0a;
+  txbuf[3] = 3;
+  txbuf[4] = (uint8_t)1;
+  txbuf[5] = (uint8_t)1;
+  txbuf[6] = (uint8_t)(1 >> 8);
+  txbuf[7] = (uint8_t)o;
+  txbuf[8] = (uint8_t)0;
+  txbuf[9] = 0x55;
+  Serial.println("Sending txbuf");
+  delay(2000);
+  Serial2.write(txbuf, 10);
+  Serial.println("txbuf sent");
 }
