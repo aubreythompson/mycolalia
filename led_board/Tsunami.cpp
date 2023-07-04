@@ -18,7 +18,7 @@ uint8_t txbuf[5];
 
 	versionRcvd = false;
 	sysinfoRcvd = false;
-  TsunamiSerial.begin(57600, SERIAL_8N1, 33, 17);
+  TsunamiSerial.begin(57600);
 	flush();
 
 	// Request version string

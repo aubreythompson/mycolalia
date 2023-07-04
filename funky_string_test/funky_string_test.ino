@@ -23,9 +23,9 @@ int firing_threshold = 2;
 
 void setup() {
   FastLED.addLeds<NEOPIXEL, 14>(tube_leds, 50);
-  FastLED.addLeds<WS2811, 25>(fairy_leds, 200);
-  FastLED.addLeds<NEOPIXEL, 26>(other_led_tubes[0], 50);
-  FastLED.addLeds<NEOPIXEL, 27>(other_led_tubes[1], 50);
+  FastLED.addLeds<WS2811, 32>(fairy_leds, 200);
+  // FastLED.addLeds<NEOPIXEL, 26>(other_led_tubes[0], 50);
+  // FastLED.addLeds<NEOPIXEL, 27>(other_led_tubes[1], 50);
 
 }
 
@@ -43,11 +43,11 @@ void loop() {
     for (int j = 0; j < 200; j++) {
       fairy_leds[j] = CHSV(HUE[0], 255, i);
     }
-    for (int j = 0; j < 50; j++) {
-      tube_leds[j] = CHSV(HUE[0], 255, i);
-      other_led_tubes[0][j] = CHSV(HUE[2], 255, i);
-      other_led_tubes[1][j] = CHSV(HUE[3], 255, i);
-    }
+    // for (int j = 0; j < 50; j++) {
+    //   tube_leds[j] = CHSV(HUE[0], 255, i);
+    //   // other_led_tubes[0][j] = CHSV(HUE[2], 255, i);
+    //   // other_led_tubes[1][j] = CHSV(HUE[3], 255, i);
+    // }
     process_synapses();
     FastLED.show();
     delay(delay_ms);
@@ -56,11 +56,11 @@ void loop() {
     for (int j = 0; j < 200; j++) {
       fairy_leds[j] = CHSV(HUE[0], 255, i);
     }
-    for (int j = 0; j < 50; j++) {
-      tube_leds[j] = CHSV(HUE[0], 255, i);
-      other_led_tubes[0][j] = CHSV(HUE[2], 255, i);
-      other_led_tubes[1][j] = CHSV(HUE[3], 255, i);
-    }
+    // for (int j = 0; j < 50; j++) {
+    //   tube_leds[j] = CHSV(HUE[0], 255, i);
+    //   other_led_tubes[0][j] = CHSV(HUE[2], 255, i);
+    //   other_led_tubes[1][j] = CHSV(HUE[3], 255, i);
+    // }
     process_synapses();
     FastLED.show();
     delay(delay_ms);

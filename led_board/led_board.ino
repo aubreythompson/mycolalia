@@ -7,11 +7,10 @@
         - maybe communicate with sound board?
 
 */
-
+// #define FASTLED_ESP32_I2S
 #include <FastLED.h>
 #include <math.h>
-#include <esp_now.h>
-#include <WiFi.h>
+#include <Wire.h>
 #include "Tsunami.h"
 #include "led_types.h"
 #include "interboard_comms.h"
@@ -38,14 +37,14 @@ int default_pulse_width = 1;
 // ---------------------- GAME STATE VARIABLES ----------------------
 // ******************************************************************
 
-float excitation = 1; //goes up with all interaction
-float contrarianism = 1; //goes up with "wrong" interaction
-float cooperatiion = 1; //goes up with "right" interaction
+float excitation = 1;     //goes up with all interaction
+float contrarianism = 1;  //goes up with "wrong" interaction
+float cooperatiion = 1;   //goes up with "right" interaction
 enum dominantColor { RED,
-               YELLOW,
-               GREEN,
-               BLUE,
-               PURPLE };
+                     YELLOW,
+                     GREEN,
+                     BLUE,
+                     PURPLE };
 
 
 /*
@@ -58,106 +57,79 @@ Purple/pink: 184 - 230 (46) space
 see https://github.com/FastLED/FastLED/wiki/FastLED-HSV-Colors rainbow spectrum for color placements
 */
 
-
-void setup() {
-  Serial.begin(115200);
-  init_comms();
-  init_leds();
-  init_sound();
-}
-
-// Each loop will
-//  - Update the state of all effects
-//  - Move each game forward one time unit
-//  - Trigger/adjust sounds as needed
-//  - Call FastLED.show() exactly once
-void loop() {
-  breathe();
-  round1();
-  process_pulses();
-  FastLED.show();
-}
-
 void init_leds() {
   // TUBES - Base of Tree
-  FastLED.addLeds<NEOPIXEL, 0>(tubes[0], LEDS_PER_TUBE);
-  FastLED.addLeds<NEOPIXEL, 4>(tubes[1], LEDS_PER_TUBE);
-  FastLED.addLeds<NEOPIXEL, 5>(tubes[2], LEDS_PER_TUBE);
+  FastLED.addLeds<NEOPIXEL, 22>(tubes[0], LEDS_PER_TUBE);
+  FastLED.addLeds<NEOPIXEL, 23>(tubes[1], LEDS_PER_TUBE);
+  FastLED.addLeds<NEOPIXEL, 24>(tubes[2], LEDS_PER_TUBE);
 
   // TUBES - Top of Tree
-  FastLED.addLeds<NEOPIXEL, 12>(tubes[3], LEDS_PER_TUBE);
-  FastLED.addLeds<NEOPIXEL, 13>(tubes[4], LEDS_PER_TUBE);
-  FastLED.addLeds<NEOPIXEL, 14>(tubes[5], LEDS_PER_TUBE);
-  FastLED.addLeds<NEOPIXEL, 15>(tubes[6], LEDS_PER_TUBE);
-  FastLED.addLeds<NEOPIXEL, 16>(tubes[7], LEDS_PER_TUBE);
-  FastLED.addLeds<NEOPIXEL, 18>(tubes[8], LEDS_PER_TUBE);
+  FastLED.addLeds<NEOPIXEL, 25>(tubes[3], LEDS_PER_TUBE);
+  FastLED.addLeds<NEOPIXEL, 26>(tubes[4], LEDS_PER_TUBE);
+  FastLED.addLeds<NEOPIXEL, 27>(tubes[5], LEDS_PER_TUBE);
+  FastLED.addLeds<NEOPIXEL, 28>(tubes[6], LEDS_PER_TUBE);
+  FastLED.addLeds<NEOPIXEL, 29>(tubes[7], LEDS_PER_TUBE);
+  FastLED.addLeds<NEOPIXEL, 30>(tubes[8], LEDS_PER_TUBE);
 
   // FUNKY STRINGS
-  FastLED.addLeds<NEOPIXEL, 19>(tubes[9], LEDS_PER_TUBE);
-  FastLED.addLeds<WS2811, 26>(fairys[0], LEDS_PER_FAIRY);
-  FastLED.addLeds<NEOPIXEL, 23>(tubes[10], LEDS_PER_TUBE);
-  FastLED.addLeds<WS2811, 27>(fairys[1], LEDS_PER_FAIRY);
-  FastLED.addLeds<NEOPIXEL, 25>(tubes[11], LEDS_PER_TUBE);
-  FastLED.addLeds<WS2811, 32>(fairys[2], LEDS_PER_FAIRY);
+  FastLED.addLeds<NEOPIXEL, 31>(tubes[9], LEDS_PER_TUBE);
+  FastLED.addLeds<WS2811, 34>(fairys[0], LEDS_PER_FAIRY);
+  FastLED.addLeds<NEOPIXEL, 32>(tubes[10], LEDS_PER_TUBE);
+  FastLED.addLeds<WS2811, 35>(fairys[1], LEDS_PER_FAIRY);
+  FastLED.addLeds<NEOPIXEL, 33>(tubes[11], LEDS_PER_TUBE);
+  FastLED.addLeds<WS2811, 36>(fairys[2], LEDS_PER_FAIRY);
 }
 
 // ******************************************************************
 // --------------------------- COMMS --------------------------------
 // ******************************************************************
+#define I2C_ADDRESS 1
+
+void receiveEvent(int howMany) {
+  Serial.print("Received event: ");
+  Serial.println(howMany);
+  if (Wire.available() > 0) {
+    byte b = Wire.read();
+    byte hue = Wire.read();
+    Serial.print("Got some bytes!: ");
+    Serial.print(b);
+    Serial.print("  ");
+    Serial.println(hue);
+    excitation += 0.1;
+    int track;
+    switch (b) {
+      case Message::V1:
+        fire_pulse(CHSV(hue, 170, 255), tv1, DECREASING, default_firing_speed, default_pulse_width);
+        fire_pulse(CHSV(hue, 170, 255), v2v, INCREASING, default_firing_speed, default_pulse_width);
+        game_button_pressed(hue, Message::V1);   
+        // Play a random chime for now
+        track = random8(2,12);     
+        loop_track(track, false);
+        play_track(track);
+        break;
+      case Message::V2:
+        fire_pulse(CHSV(hue, 170, 255), tv2, DECREASING, default_firing_speed, default_pulse_width);
+        fire_pulse(CHSV(hue, 170, 255), v2v, DECREASING, default_firing_speed, default_pulse_width);
+        game_button_pressed(hue, Message::V2);
+        // Play a random chime for now
+        track = random8(2, 12);
+        loop_track(track, false);
+        play_track(track);
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 void init_comms() {
-  // Set ESP32 as a Wi-Fi Station
-  WiFi.mode(WIFI_STA);
-  //esp_wifi_set_mac(WIFI_IF_STA, &led_board_address[0]);
-  WiFi.disconnect();
-
-  // Initilize ESP-NOW
-  if (esp_now_init() != ESP_OK) {
-    Serial.println("Error initializing ESP-NOW");
-    return;
-  }
-
-  // Register the receive callback
-  esp_now_register_recv_cb(message_received);
+  Wire.begin(4);
+  pinMode(SDA, INPUT);
+  pinMode(SCL, INPUT);
+  Wire.onReceive(receiveEvent);
+  
 }
-bool playing = false; // This was just for testing and should go away
-Message incoming_msg;
-void message_received(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
-  if (len == 1) {
-    delay(10);
-    Serial.println("uhhh it's doin the thing again");
-    return;
-  }
-  memcpy(&incoming_msg, incomingData, sizeof(incoming_msg));
-  excitation += .1;
-  // Serial.println("memcpy successful!");
-  switch (incoming_msg.sender) {
-    case Message::V1:
-      if (incoming_msg.event == Message::BUTTON_PRESSED) {
-        fire_pulse(CHSV(incoming_msg.hue, 170, 255), tv1, DECREASING, default_firing_speed, default_pulse_width);
-        fire_pulse(CHSV(incoming_msg.hue, 170, 255), v2v, INCREASING, default_firing_speed, default_pulse_width);
-        game_button_pressed(incoming_msg.hue, Message::V1);
-        if (playing) {
-          stop_all_tracks();
-          playing = false;
-        } else {
-          int track = random(1, 13);
-          loop_track(track, true);
-          play_track(track);
-          playing = true;
-        }
-      }
-      break;
-    case Message::V2:
-      if (incoming_msg.event == Message::BUTTON_PRESSED) {
-        fire_pulse(CHSV(incoming_msg.hue, 170, 255), tv2, DECREASING, default_firing_speed, default_pulse_width);
-        fire_pulse(CHSV(incoming_msg.hue, 170, 255), v2v, DECREASING, default_firing_speed, default_pulse_width);
-        game_button_pressed(incoming_msg.hue, Message::V2);
-      }
-      break;
-    default:
-      break;
-  }
-}
+
 // ******************************************************************
 // --------------------------- SOUND --------------------------------
 // ******************************************************************
@@ -167,11 +139,12 @@ void init_sound() {
   Serial.println("initializing Tsunami!");
   tsunami.start();
   Serial.println("Tsunami initialized...");
-  delay(10);
+  delay(15);
   tsunami.stopAllTracks();
   tsunami.samplerateOffset(0, 0);
   tsunami.setReporting(false);
   tsunami.masterGain(0, 0);  // Reset the master gain to 0dB
+  delay(10);
 }
 
 void play_track(int track) {
@@ -268,7 +241,7 @@ void fire_pulse(CRGB color, Funky funky, bool increasing, int speed, int width) 
 #define MIN_BREATH 50
 #define MAX_BREATH 250
 int saturation = 200;
-int breathing_speed = 1;
+int breathing_speed = 2;
 bool inhaling = true;
 int breath_brightness = MIN_BREATH;
 int hues[TUBE_COUNT + FAIRY_COUNT];
@@ -343,9 +316,9 @@ void round1() {
       firing_period_ms = 1000;
       break;
     case R1Phase::CLUEV1:
-      clear_funky(tv1);
-      clear_funky(tv2);
-      clear_funky(v2v);
+      // clear_funky(tv1);
+      // clear_funky(tv2);
+      // clear_funky(v2v);
       // continually send pulses of hue_to_match to V1
       if (now - last_fired_at > firing_period_ms) {
         fire_pulse(CHSV(hue_to_match, 170, 255), tv2, INCREASING, firing_speed, pulse_width);
@@ -443,47 +416,76 @@ void clear_fairy(int idx) {
 }
 
 
-void test_tsunami_forever() {
-  delay(1000);
-  Serial.begin(115200);
-  Serial.println("Starting tsunami in 2...");
-  delay(2000);
-  tsunami.start();
-  Serial.println("Tsunami started");
-  Serial.println("Sending StopAll command in 2...");
-  delay(2000);
-  tsunami.stopAllTracks();
-  Serial.println("Calling update on tsunami in 2...");
-  delay(2000);
-  tsunami.update();
-  while (true) {
-    Serial.println("Playing track 5 in 2...");
-    delay(2000);
-    tsunami.trackPlayPoly(5, 0, true);
-    tsunami.update();
-  }
+// void test_tsunami_forever() {
+//   delay(1000);
+//   Serial.begin(115200);
+//   Serial.println("Starting tsunami in 2...");
+//   delay(2000);
+//   tsunami.start();
+//   Serial.println("Tsunami started");
+//   Serial.println("Sending StopAll command in 2...");
+//   delay(2000);
+//   tsunami.stopAllTracks();
+//   Serial.println("Calling update on tsunami in 2...");
+//   delay(2000);
+//   tsunami.update();
+//   while (true) {
+//     Serial.println("Playing track 5 in 2...");
+//     delay(2000);
+//     tsunami.trackPlayPoly(5, 0, true);
+//     tsunami.update();
+//   }
+// }
+
+// void test_tsunami_raw_serial() {
+//   Serial.println("Setting up serial2");
+//   Serial2.begin(57600, SERIAL_8N1, 33, 17);
+//   Serial.println("Serial2 setup success");
+//   uint8_t txbuf[10];
+//   uint8_t o;
+
+//   o = 1 & 0x07;
+//   txbuf[0] = 0xf0;
+//   txbuf[1] = 0xaa;
+//   txbuf[2] = 0x0a;
+//   txbuf[3] = 3;
+//   txbuf[4] = (uint8_t)1;
+//   txbuf[5] = (uint8_t)1;
+//   txbuf[6] = (uint8_t)(1 >> 8);
+//   txbuf[7] = (uint8_t)o;
+//   txbuf[8] = (uint8_t)0;
+//   txbuf[9] = 0x55;
+//   Serial.println("Sending txbuf");
+//   delay(2000);
+//   Serial2.write(txbuf, 10);
+//   Serial.println("txbuf sent");
+// }
+
+void setup() {
+  Serial.begin(9600);
+  init_comms();
+  init_leds();
+  init_sound();
+  // loop_track(BREATH, true);
+  // play_track(BREATH);
 }
 
-void test_tsunami_raw_serial() {
-  Serial.println("Setting up serial2");
-  Serial2.begin(57600, SERIAL_8N1, 33, 17);
-  Serial.println("Serial2 setup success");
-  uint8_t txbuf[10];
-  uint8_t o;
-
-  o = 1 & 0x07;
-  txbuf[0] = 0xf0;
-  txbuf[1] = 0xaa;
-  txbuf[2] = 0x0a;
-  txbuf[3] = 3;
-  txbuf[4] = (uint8_t)1;
-  txbuf[5] = (uint8_t)1;
-  txbuf[6] = (uint8_t)(1 >> 8);
-  txbuf[7] = (uint8_t)o;
-  txbuf[8] = (uint8_t)0;
-  txbuf[9] = 0x55;
-  Serial.println("Sending txbuf");
-  delay(2000);
-  Serial2.write(txbuf, 10);
-  Serial.println("txbuf sent");
+unsigned long last_played_at = 0;
+// Each loop will
+//  - Update the state of all effects
+//  - Move each game forward one time unit
+//  - Trigger/adjust sounds as needed
+//  - Call FastLED.show() exactly once
+void loop() {
+  breathe();
+  //round1();
+  process_pulses();
+  FastLED.show();
+  // unsigned long now = millis();
+  // if (random8() > 252) {
+  //   fire_pulse(CHSV(random8(), 170, 255), TUBE, random8(TUBE_COUNT), INCREASING, random8(1, 3), random8(1, 5));
+  //   int track = random(2, 12);
+  //   loop_track(track, false);
+  //   play_track(track);
+  // }
 }

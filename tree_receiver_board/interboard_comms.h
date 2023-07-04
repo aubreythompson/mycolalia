@@ -19,8 +19,4 @@ typedef struct Message {
   Sender sender;
 } message;
 
-// Bytes for I2C comms
-#define V1BUTTON 0x00
-#define V2BUTTON 0x01
-#define V1SETCOLOR 0x02
-#define V2SETCOLOR 0x03
+
