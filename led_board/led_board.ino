@@ -10,7 +10,6 @@
 // #define FASTLED_ESP32_I2S
 #include <FastLED.h>
 #include <math.h>
-#include <Wire.h>
 #include "Tsunami.h"
 #include "led_types.h"
 #include "interboard_comms.h"
@@ -85,12 +84,10 @@ void init_leds() {
 // ******************************************************************
 #define I2C_ADDRESS 1
 
-void receiveEvent(int howMany) {
-  Serial.print("Received event: ");
-  Serial.println(howMany);
-  if (Wire.available() > 0) {
-    byte b = Wire.read();
-    byte hue = Wire.read();
+void checkSerial() {
+  if (Serial2.available() > 0) {
+    byte b = Serial2.read();
+    byte hue = Serial2.read();
     Serial.print("Got some bytes!: ");
     Serial.print(b);
     Serial.print("  ");
@@ -123,11 +120,7 @@ void receiveEvent(int howMany) {
 }
 
 void init_comms() {
-  Wire.begin(4);
-  pinMode(SDA, INPUT);
-  pinMode(SCL, INPUT);
-  Wire.onReceive(receiveEvent);
-  
+  Serial2.begin(9600);
 }
 
 // ******************************************************************
@@ -477,6 +470,7 @@ unsigned long last_played_at = 0;
 //  - Trigger/adjust sounds as needed
 //  - Call FastLED.show() exactly once
 void loop() {
+  checkSerial();
   breathe();
   //round1();
   process_pulses();
