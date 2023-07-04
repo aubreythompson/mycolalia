@@ -82,8 +82,6 @@ void init_leds() {
 // ******************************************************************
 // --------------------------- COMMS --------------------------------
 // ******************************************************************
-#define I2C_ADDRESS 1
-
 void checkSerial() {
   if (Serial2.available() > 0) {
     byte b = Serial2.read();
@@ -97,12 +95,19 @@ void checkSerial() {
     switch (b) {
       case Message::V1:
         fire_pulse(CHSV(hue, 170, 255), tv1, DECREASING, default_firing_speed, default_pulse_width);
+        fire_pulse(CHSV(hue, 170, 255), tv2, DECREASING, default_firing_speed, default_pulse_width);
         fire_pulse(CHSV(hue, 170, 255), v2v, INCREASING, default_firing_speed, default_pulse_width);
-        game_button_pressed(hue, Message::V1);   
+        fire_pulse(CHSV(hue, 170, 255), TUBE, random8(12), INCREASING, random8(1, 5), random8(1, 8));
+        fire_pulse(CHSV(hue, 170, 255), TUBE, random8(12), INCREASING, random8(1, 5), random8(1, 8));
+        fire_pulse(CHSV(hue, 170, 255), TUBE, random8(12), INCREASING, random8(1, 5), random8(1, 8));
+        fire_pulse(CHSV(hue, 170, 255), TUBE, random8(12), INCREASING, random8(1, 5), random8(1, 8));
+        game_button_pressed(hue, Message::V1);
         // Play a random chime for now
-        track = random8(2,12);     
+        track = random8(2, 12);
         loop_track(track, false);
         play_track(track);
+        // Speed up sound?
+        speed_up_sound(1000);
         break;
       case Message::V2:
         fire_pulse(CHSV(hue, 170, 255), tv2, DECREASING, default_firing_speed, default_pulse_width);
@@ -138,25 +143,62 @@ void init_sound() {
   tsunami.setReporting(false);
   tsunami.masterGain(0, 0);  // Reset the master gain to 0dB
   delay(10);
+  load_all_tracks();
+}
+
+void mute_track(int track) {
+  tsunami.trackGain(track, -70);  // Gain is from -70 to +10, with 0 being whatever is in the file
+}
+
+void fade_in(int track, int duration_ms) {
+  tsunami.trackFade(track, 0, duration_ms, false);
+}
+
+void fade_out(int track, int duration_ms) {
+  tsunami.trackFade(track, -70, duration_ms, false);
+}
+
+void load_all_tracks() {
+  for (int i = 12; i < 23; i++) {
+    tsunami.trackLoad(i, 0, true);
+    mute_track(i);
+    loop_track(i, true);
+  }
+  tsunami.resumeAllInSync();
 }
 
 void play_track(int track) {
   Serial.print("Playing track ");
   Serial.println(track);
   tsunami.trackPlayPoly(track, 0, false);
-  tsunami.update();
 }
 
 void loop_track(int track, bool looping) {
   tsunami.trackLoop(track, looping);
-  tsunami.update();
 }
 
 void stop_all_tracks() {
   tsunami.stopAllTracks();
   tsunami.update();
 }
+int current_sample_rate_offset = 0;
+#define MIN_SAMPLE_RATE -1000
+#define MAX_SAMPLE_RATE 25000
+void speed_up_sound(int offset_amount) {
+  current_sample_rate_offset += offset_amount;
+  current_sample_rate_offset = min(MAX_SAMPLE_RATE, current_sample_rate_offset);
+  tsunami.samplerateOffset(0, current_sample_rate_offset);
+  Serial.print("increased sample rate offset to ");
+  Serial.println(current_sample_rate_offset);
+}
 
+void slow_down_sound(int offset_amount) {
+  current_sample_rate_offset -= offset_amount;
+  current_sample_rate_offset = max(MIN_SAMPLE_RATE, current_sample_rate_offset);
+  tsunami.samplerateOffset(0, current_sample_rate_offset);
+  Serial.print("decreased sample rate offset to ");
+  Serial.println(current_sample_rate_offset);
+}
 // ******************************************************************
 // --------------------------- PULSES -------------------------------
 // ******************************************************************
@@ -408,52 +450,6 @@ void clear_fairy(int idx) {
   }
 }
 
-
-// void test_tsunami_forever() {
-//   delay(1000);
-//   Serial.begin(115200);
-//   Serial.println("Starting tsunami in 2...");
-//   delay(2000);
-//   tsunami.start();
-//   Serial.println("Tsunami started");
-//   Serial.println("Sending StopAll command in 2...");
-//   delay(2000);
-//   tsunami.stopAllTracks();
-//   Serial.println("Calling update on tsunami in 2...");
-//   delay(2000);
-//   tsunami.update();
-//   while (true) {
-//     Serial.println("Playing track 5 in 2...");
-//     delay(2000);
-//     tsunami.trackPlayPoly(5, 0, true);
-//     tsunami.update();
-//   }
-// }
-
-// void test_tsunami_raw_serial() {
-//   Serial.println("Setting up serial2");
-//   Serial2.begin(57600, SERIAL_8N1, 33, 17);
-//   Serial.println("Serial2 setup success");
-//   uint8_t txbuf[10];
-//   uint8_t o;
-
-//   o = 1 & 0x07;
-//   txbuf[0] = 0xf0;
-//   txbuf[1] = 0xaa;
-//   txbuf[2] = 0x0a;
-//   txbuf[3] = 3;
-//   txbuf[4] = (uint8_t)1;
-//   txbuf[5] = (uint8_t)1;
-//   txbuf[6] = (uint8_t)(1 >> 8);
-//   txbuf[7] = (uint8_t)o;
-//   txbuf[8] = (uint8_t)0;
-//   txbuf[9] = 0x55;
-//   Serial.println("Sending txbuf");
-//   delay(2000);
-//   Serial2.write(txbuf, 10);
-//   Serial.println("txbuf sent");
-// }
-
 void setup() {
   Serial.begin(9600);
   init_comms();
@@ -464,6 +460,7 @@ void setup() {
 }
 
 unsigned long last_played_at = 0;
+unsigned long last_slowed_at = millis();
 // Each loop will
 //  - Update the state of all effects
 //  - Move each game forward one time unit
@@ -475,11 +472,21 @@ void loop() {
   //round1();
   process_pulses();
   FastLED.show();
-  // unsigned long now = millis();
-  // if (random8() > 252) {
-  //   fire_pulse(CHSV(random8(), 170, 255), TUBE, random8(TUBE_COUNT), INCREASING, random8(1, 3), random8(1, 5));
-  //   int track = random(2, 12);
-  //   loop_track(track, false);
-  //   play_track(track);
-  // }
+  unsigned long now = millis();
+  if (now - last_played_at > 15000) {
+    int trk = random8(12, 23);
+    last_played_at = now;
+    if (random8() > 200) {
+      fade_out(trk, 1000);
+      Serial.print("Fading out track ");
+    } else {
+      fade_in(trk, 1000);
+      Serial.print("Fading in track ");
+    }
+    Serial.println(trk);
+  }
+  if (now - last_slowed_at > 300000) {
+    slow_down_sound(500);
+    last_slowed_at = now;
+  }
 }
