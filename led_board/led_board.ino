@@ -34,24 +34,6 @@ int tt[] = { 3, 4, 5, 6, 7, 8 };  // tree top
 // ---------------------- GAME STATE VARIABLES ----------------------
 // ******************************************************************
 
-bool p1_button_pressed, p2_button_pressed;  // guessing we'll need these for some game state?
-
-// Move through these states as we progress through this round
-enum R1Phase { INIT,
-               CLUEV1,
-               V1RIGHT,
-               CLUEV2,
-               V2WRONG,
-               V2RIGHT,
-               CLUEBOTH };
-R1Phase r1_phase = R1Phase::INIT;
-
-int hue_to_match;
-int pulse_idx;
-uint32_t last_fired_at = 0;
-uint32_t right_animation_started_at = 0;
-int p1_hue_guessed, p2_hue_guessed;
-
 
 //the following will vary based on excitation
 int max_firing_speed = 1; 
@@ -383,7 +365,23 @@ void set_random_hues() {
 // ******************************************************************
 // ------------------------- GAME -----------------------------------
 // ******************************************************************
+bool p1_button_pressed, p2_button_pressed;  // guessing we'll need these for some game state?
 
+// Move through these states as we progress through this round
+enum R1Phase { INIT,
+               CLUEV1,
+               V1RIGHT,
+               CLUEV2,
+               V2RIGHT,
+               CLUEBOTH,
+               BOTHRIGHT };
+R1Phase r1_phase = R1Phase::INIT;
+
+int hue_to_match;
+int pulse_idx;
+uint32_t last_fired_at = 0;
+uint32_t right_animation_started_at = 0;
+int p1_hue_guessed, p2_hue_guessed;
 
 // ROUND 1 - MATCH THE COLOR ONE AT A TIME
 void round1() {
@@ -450,11 +448,10 @@ void round1() {
         p2_button_pressed = false;
       }
       break;
-    case R1Phase::V2RIGHT:
-      excitation += .1;
-      // Go fucking crazy man, like really bonkers cuz they both got it right
-      if (now - last_fired_at > 100) {
-        right_animation(hue_to_match);
+     case R1Phase::V2RIGHT:
+       if (now - last_fired_at > 300) {
+        fire_pulse(CHSV(hue_to_match, 170, 255), tv2, DECREASING, max_firing_speed, max_pulse_width);
+        fire_pulse(CHSV(hue_to_match, 170, 255), v2v, INCREASING, max_firing_speed, max_pulse_width);
         last_fired_at = now;
       }
       if (right_animation_started_at + right_animation_duration > now) {
@@ -463,7 +460,29 @@ void round1() {
       }
       break;
     case R1Phase::CLUEBOTH:
+       if (now - last_fired_at > firing_period_ms) {
+        fire_pulse(CHSV(hue_to_match, 170, 255), tv1, INCREASING, max_firing_speed, max_pulse_width);
+        fire_pulse(CHSV(hue_to_match, 170, 255), tv2, INCREASING, max_firing_speed, max_pulse_width);
+        last_fired_at = now;
+      }
+      if (p1_button_pressed && p2_button_pressed) {
+        if (abs(p2_hue_guessed - hue_to_match) < correct_max_distance && abs(p1_hue_guessed - hue_to_match) < correct_max_distance) {
+          r1_phase = R1Phase::BOTHRIGHT;
+          right_animation_started_at = now;
+        }
+      }
       break;
+    case R1Phase::BOTHRIGHT:
+      // Go fucking crazy man, like really bonkers cuz they both got it right
+      if (now - last_fired_at > 100) {
+        right_animation(hue_to_match);
+        last_fired_at = now;
+      }
+      if (right_animation_started_at + right_animation_duration > now) {
+        //just go back to clueing both for now
+        r1_phase = R1Phase::CLUEBOTH;
+        hue_to_match = random8();
+      }
     default:
       break;
   }
