@@ -19,7 +19,7 @@
 #define SIMPLEHIHATRIM 019
 #define SYNTHPAD 020
 #define VOX1 021
-#define VOX2 022 
+#define VOX2 022
 
 /// SPEED 2s (12% faster)
 #define FLYTRAPPARALLEL_SPEED2 023

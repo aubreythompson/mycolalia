@@ -44,6 +44,8 @@ int hue_animation_window = 20; //how much may be added or subtracted to the corr
 int base_breathing_speed, breathing_speed = 2;
 int sample_rate_offset = -1000;
 int correct_max_distance = 5;
+int current_max_pulses = 10; 
+
 
 // decrease excitation based on how long we've been inactive (goes to 0 when button is hit)
 uint32_t last_played = -50000;
@@ -74,26 +76,60 @@ void updateGameStateVariables() {
     excitation = max(0,excitation - 1); // minus one, or down a level, whatever that ends up being
   }
   if (excitation<1) {
-      max_firing_speed = 1; 
-      max_pulse_width = 2; 
-      firing_period_ms = 1000;  
-      right_animation_duration = 5000; 
-      hue_animation_window = 20; 
-      breathing_speed = 2;
-      sample_rate_offset = -1000;
+    max_firing_speed = 1; 
+    max_pulse_width = 2; 
+    firing_period_ms = 1000;  
+    right_animation_duration = 5000; 
+    hue_animation_window = 20; 
+    breathing_speed = 2; //to do - make this and rate offset relate to each other
+    sample_rate_offset = -1000;
+    current_max_pulses = 10;
   } else if (excitation<2) {
-
+    max_firing_speed = 4; 
+    max_pulse_width = 4; 
+    firing_period_ms = 800;  
+    right_animation_duration = 6000; 
+    hue_animation_window = 25; 
+    breathing_speed = 3;
+    sample_rate_offset = 0;
+    current_max_pulses = 20;
   } else if (excitation<3) {
-
+    max_firing_speed = 6; 
+    max_pulse_width = 4; 
+    firing_period_ms = 700;  
+    right_animation_duration = 7000; 
+    hue_animation_window = 30; 
+    breathing_speed = 4;
+    sample_rate_offset = 1000;
+    current_max_pulses = 40;
   } else if (excitation<4) {
-
+    max_firing_speed = 8; 
+    max_pulse_width = 5; 
+    firing_period_ms = 600;  
+    right_animation_duration = 7500; 
+    hue_animation_window = 50; 
+    breathing_speed = 5;
+    sample_rate_offset = 1500;
+    current_max_pulses = 60;
   } else if (excitation<5) {
-
+    max_firing_speed = 10; 
+    max_pulse_width = 5; 
+    firing_period_ms = 500;  
+    right_animation_duration = 8000; 
+    hue_animation_window = 60; 
+    breathing_speed = 6;
+    sample_rate_offset = 2000;
+    current_max_pulses = 80;
   } else { //max out!!
-
+    max_firing_speed = 12; 
+    max_pulse_width = 6; 
+    firing_period_ms = 500;  
+    right_animation_duration = 10000; 
+    hue_animation_window = 100; 
+    breathing_speed = 7;
+    sample_rate_offset = 2500;
+    current_max_pulses = 100;
   }
-  
-  
 }
 
 
@@ -253,7 +289,6 @@ void slow_down_sound(int offset_amount) {
 
 #define MAX_PULSES 100 
 Pulse pulses[MAX_PULSES];
-int current_max_pulses = 10; //make this a function of excitation
 
 void process_pulses() {
   Pulse *p;
@@ -449,6 +484,7 @@ void round1() {
       }
       break;
      case R1Phase::V2RIGHT:
+       excitation += .1;
        if (now - last_fired_at > 300) {
         fire_pulse(CHSV(hue_to_match, 170, 255), tv2, DECREASING, max_firing_speed, max_pulse_width);
         fire_pulse(CHSV(hue_to_match, 170, 255), v2v, INCREASING, max_firing_speed, max_pulse_width);
@@ -473,6 +509,7 @@ void round1() {
       }
       break;
     case R1Phase::BOTHRIGHT:
+      excitation += .2;
       // Go fucking crazy man, like really bonkers cuz they both got it right
       if (now - last_fired_at > 100) {
         right_animation(hue_to_match);
