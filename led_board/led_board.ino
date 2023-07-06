@@ -59,11 +59,14 @@ int max_pulse_width = 2;
 int firing_period_ms = 1000;  
 int right_animation_duration = 5000; 
 int hue_animation_window = 20; //how much may be added or subtracted to the correct hue(s) guess when right animation is played
-//breathing_speed
-//sample rate offset for music
+int base_breathing_speed, breathing_speed = 2;
+int sample_rate_offset = -1000;
 int correct_max_distance = 5;
 
-float excitation = 1;     //goes up with all interaction
+// decrease excitation based on how long we've been inactive (goes to 0 when button is hit)
+uint32_t last_played = -50000;
+
+float excitation = 0;     //goes up with all interaction
 float contrarianism = 0;  //goes up with "wrong" interaction
 float cooperation = 0;   //goes up with "right" interaction
 enum dominantColor { RED,
@@ -83,13 +86,32 @@ see https://github.com/FastLED/FastLED/wiki/FastLED-HSV-Colors rainbow spectrum 
 
 
 void updateGameStateVariables() {
-  max_firing_speed = 1; 
-  max_pulse_width = 2; 
-  firing_period_ms = 1000*(1/excitation);  
-  right_animation_duration = right_animation_duration*excitation; 
-  hue_animation_window = 20*excitation; 
-  breathing_speed = 2*excitation;
-  //sample rate offset
+  unsigned long now = millis();
+  //every 10 seconds without interaction, move 
+  if ((now-last_played) % 10000) {
+    excitation = max(0,excitation - 1); // minus one, or down a level, whatever that ends up being
+  }
+  if (excitation<1) {
+      max_firing_speed = 1; 
+      max_pulse_width = 2; 
+      firing_period_ms = 1000;  
+      right_animation_duration = 5000; 
+      hue_animation_window = 20; 
+      breathing_speed = 2;
+      sample_rate_offset = -1000;
+  } else if (excitation<2) {
+
+  } else if (excitation<3) {
+
+  } else if (excitation<4) {
+
+  } else if (excitation<5) {
+
+  } else { //max out!!
+
+  }
+  
+  
 }
 
 
@@ -121,6 +143,7 @@ void init_leds() {
 // ******************************************************************
 // --------------------------- COMMS --------------------------------
 // ******************************************************************
+
 void checkSerial() {
   if (Serial2.available() > 0) {
     byte b = Serial2.read();
@@ -133,10 +156,11 @@ void checkSerial() {
     int track;
     switch (b) {
       case Message::V1:
+        last_played = millis();
         excitation += 0.1;
-        fire_pulse(CHSV(hue, 170, 255), tv1, DECREASING, firing_speed, pulse_width);
-        fire_pulse(CHSV(hue, 170, 255), tv2, DECREASING, firing_speed, pulse_width);
-        fire_pulse(CHSV(hue, 170, 255), v2v, INCREASING, firing_speed, pulse_width);
+        fire_pulse(CHSV(hue, 170, 255), tv1, DECREASING, max_firing_speed, max_pulse_width);
+        fire_pulse(CHSV(hue, 170, 255), tv2, DECREASING, max_firing_speed, max_pulse_width);
+        fire_pulse(CHSV(hue, 170, 255), v2v, INCREASING, max_firing_speed, max_pulse_width);
         fire_pulse(CHSV(hue, 170, 255), TUBE, random8(12), INCREASING, random8(1, max_firing_speed), random8(1, max_pulse_width));
         fire_pulse(CHSV(hue, 170, 255), TUBE, random8(12), INCREASING, random8(1, max_firing_speed), random8(1, max_pulse_width));
         fire_pulse(CHSV(hue, 170, 255), TUBE, random8(12), INCREASING, random8(1, max_firing_speed), random8(1, max_pulse_width));
@@ -150,9 +174,10 @@ void checkSerial() {
         speed_up_sound(1000);
         break;
       case Message::V2:
+        last_played = millis();
         excitation += 0.1;
-        fire_pulse(CHSV(hue, 170, 255), tv2, DECREASING, firing_speed, pulse_width);
-        fire_pulse(CHSV(hue, 170, 255), v2v, DECREASING, firing_speed, pulse_width);
+        fire_pulse(CHSV(hue, 170, 255), tv2, DECREASING, max_firing_speed, max_pulse_width);
+        fire_pulse(CHSV(hue, 170, 255), v2v, DECREASING, max_firing_speed, max_pulse_width);
         game_button_pressed(hue, Message::V2);
         // Play a random chime for now
         track = random8(2, 12);
@@ -317,7 +342,7 @@ void fire_pulse(CRGB color, Funky funky, bool increasing, int speed, int width) 
 #define MIN_BREATH 50
 #define MAX_BREATH 250
 int saturation = 200;
-int breathing_speed = 2; //also a function of excitation
+//int breathing_speed = 2; //also a function of excitation, defined above with game state variables
 bool inhaling = true;
 int breath_brightness = MIN_BREATH;
 int hues[TUBE_COUNT + FAIRY_COUNT];
@@ -377,7 +402,7 @@ void round1() {
       // clear_funky(v2v);
       // continually send pulses of hue_to_match to V1
       if (now - last_fired_at > firing_period_ms) {
-        fire_pulse(CHSV(hue_to_match, 170, 255), tv2, INCREASING, firing_speed, pulse_width);
+        fire_pulse(CHSV(hue_to_match, 170, 255), tv2, INCREASING, max_firing_speed, max_pulse_width);
         last_fired_at = now;
       }
       // Check button press, if pressed, check answer
@@ -396,8 +421,8 @@ void round1() {
       // When effect is complete, move to CLUEV2
       excitation += .1;
       if (now - last_fired_at > 300) {
-        fire_pulse(CHSV(hue_to_match, 170, 255), tv1, DECREASING, firing_speed, pulse_width);
-        fire_pulse(CHSV(hue_to_match, 170, 255), v2v, INCREASING, firing_speed, pulse_width);
+        fire_pulse(CHSV(hue_to_match, 170, 255), tv1, DECREASING, max_firing_speed, max_pulse_width);
+        fire_pulse(CHSV(hue_to_match, 170, 255), v2v, INCREASING, max_firing_speed, max_pulse_width);
         last_fired_at = now;
       }
       if (right_animation_started_at + right_animation_duration > now) {
@@ -411,7 +436,7 @@ void round1() {
       clear_funky(v2v);
       // continually send pulses of hue_to_match to V2
       if (now - last_fired_at > firing_period_ms) {
-        fire_pulse(CHSV(hue_to_match, 170, 255), tv2, INCREASING, firing_speed, pulse_width);
+        fire_pulse(CHSV(hue_to_match, 170, 255), tv2, INCREASING, max_firing_speed, max_pulse_width);
         last_fired_at = now;
       }
       // Check button press, if pressed, check answer
